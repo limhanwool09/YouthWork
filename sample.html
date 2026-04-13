@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouthWork - 청소년 안심 알바</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+        :root { --primary: #2ecc71; --primary-dark: #27ae60; --bg: #f5f6fa; --text: #2f3640; }
+        * { box-sizing: border-box; font-family: 'Noto Sans KR', sans-serif; }
+        body { background-color: var(--bg); margin: 0; padding-bottom: 60px; color: var(--text); }
+
+        /* 🐻 캐릭터 '우키' - 귀와 머리 일체형 수술 완료 */
+        header { background: white; padding: 40px 20px; text-align: center; border-bottom: 3px solid var(--primary); }
+        .character-box { width: 80px; height: 80px; margin: 0 auto 15px; position: relative; }
+        
+        .wooki-face { 
+            width: 100%; height: 100%; background: #ffbe76; 
+            border-radius: 50% 50% 45% 45%; position: relative; border: 3px solid #333;
+            animation: bounce 2s infinite; 
+            z-index: 2;
+        }
+        /* 귀를 머리 자식 요소로 넣어 일체화 */
+        .ear { 
+            width: 25px; height: 25px; background: #ffbe76; 
+            border: 3px solid #333; border-radius: 50%; 
+            position: absolute; top: -5px; z-index: -1; 
+        }
+        .ear.left { left: -5px; } 
+        .ear.right { right: -5px; }
+
+        .eye { width: 8px; height: 8px; background: #333; border-radius: 50%; position: absolute; top: 35px; }
+        .eye.left { left: 20px; } .eye.right { right: 20px; }
+        .nose { width: 12px; height: 8px; background: #333; border-radius: 50%; position: absolute; top: 48px; left: 50%; transform: translateX(-50%); }
+        
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        
+        nav { display: flex; background: white; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        nav button { flex: 1; padding: 15px; border: none; background: none; font-weight: bold; cursor: pointer; color: #7f8c8d; }
+        nav button.active { color: var(--primary-dark); border-bottom: 4px solid var(--primary-dark); }
+
+        .section { display: none; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .section.active { display: block; }
+
+        .card { background: white; border-radius: 15px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        .btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
+        .btn:disabled { background: #dcdde1; }
+        .user-info { text-align: right; padding: 10px; font-size: 11px; color: #888; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="character-box">
+        <div class="wooki-face">
+            <div class="ear left"></div>
+            <div class="ear right"></div>
+            <div class="eye left"></div>
+            <div class="eye right"></div>
+            <div class="nose"></div>
+        </div>
+    </div>
+    <h1 style="margin:0; color:var(--primary-dark); font-size: 24px;">YouthWork</h1>
+    <div id="authStatus" class="user-info">로그인이 필요합니다.</div>
+</header>
+
+<nav>
+    <button class="nav-btn active" onclick="showSection('home', this)">알바검색</button>
+    <button class="nav-btn" onclick="showSection('post', this)">공고등록</button>
+    <button class="nav-btn" id="loginTab" onclick="handleProfileTab(this)">로그인</button>
+</nav>
+
+<section id="home" class="section active">
+    <h3>🌱 안심 알바 공고</h3>
+    <div id="jobList">데이터 로딩 중...</div>
+</section>
+
+<section id="post" class="section">
+    <h3>📢 새 공고 등록</h3>
+    <input type="text" id="p_title" placeholder="공고 제목 (예: 편의점 스태프 구함)">
+    <input type="text" id="p_company" placeholder="업체명">
+    <input type="number" id="p_pay" placeholder="시급 (숫자만)">
+    <input type="text" id="p_location" placeholder="근무 지역">
+    <div style="margin: 10px 0; font-size: 14px;">
+        <input type="checkbox" id="p_safe" checked style="width: auto;"> 근로계약서 준수 및 안심 사업장임을 약속합니다.
+    </div>
+    <button class="btn" onclick="saveJob()">서버에 등록하기</button>
+</section>
+
+<section id="login" class="section">
+    <h3>로그인</h3>
+    <input type="email" id="login_email" placeholder="이메일">
+    <input type="password" id="login_password" placeholder="비밀번호">
+    <button class="btn" onclick="handleLogin()">로그인</button>
+    <p style="text-align: center; font-size: 14px;">계정이 없으신가요? <a href="#" onclick="showSection('signup')">회원가입</a></p>
+</section>
+
+<section id="mypage" class="section">
+    <h3>내 정보</h3>
+    <p id="mypage_email" style="font-weight: bold;"></p>
+    <button class="btn" style="background:#e84118;" onclick="handleLogout()">로그아웃</button>
+</section>
+
+<section id="signup" class="section">
+    <h3>회원가입</h3>
+    <div id="signup_step1">
+        <p>1. 이메일 인증번호 받기</p>
+        <input type="email" id="signup_email" placeholder="이메일 주소">
+        <button class="btn" id="btn_send_code" onclick="sendCode()">인증번호 발송</button>
+        <div id="code_input_area" style="display:none; margin-top:20px;">
+            <input type="text" id="verify_code" placeholder="인증번호 6자리">
+            <button class="btn" style="background:#27ae60;" onclick="checkCode()">인증 확인</button>
+        </div>
+    </div>
+    <div id="signup_step2" style="display:none;">
+        <p style="color:var(--primary-dark); font-weight:bold;">✅ 인증 성공! 비밀번호를 설정하세요.</p>
+        <input type="password" id="signup_password" placeholder="비밀번호 (6자 이상)">
+        <button class="btn" onclick="completeSignUp()">회원가입 완료</button>
+    </div>
+</section>
+
+<script>
+    const SUPABASE_URL = 'https://ypkmnujfwlmhikflnpfk.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_kaotCzJvoLFm80ac6hMXCA_GvRXcvrb';
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let isUserLoggedIn = false;
+
+    // --- 네비게이션 및 섹션 관리 ---
+    function showSection(id, btnElement = null) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        const target = document.getElementById(id);
+        if(target) target.classList.add('active');
+
+        if (btnElement) {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+        }
+        if(id === 'home') loadJobs();
+    }
+
+    function handleProfileTab(btn) {
+        isUserLoggedIn ? showSection('mypage', btn) : showSection('login', btn);
+    }
+
+    // --- [사용자 요청] 로그인/회원가입 로직 유지 ---
+    async function sendCode() {
+        const email = document.getElementById('signup_email').value;
+        if(!email) return alert("이메일을 입력해주세요.");
+        const { error } = await client.auth.signUp({ email, password: 'temporary_password123' });
+        if(error) alert("발송 실패: " + error.message);
+        else { alert("인증번호가 발송되었습니다."); document.getElementById('code_input_area').style.display = 'block'; }
+    }
+
+    async function checkCode() {
+        const email = document.getElementById('signup_email').value;
+        const token = document.getElementById('verify_code').value;
+        const { error } = await client.auth.verifyOtp({ email, token, type: 'signup' });
+        if(error) alert("인증 실패: " + error.message);
+        else { document.getElementById('signup_step1').style.display = 'none'; document.getElementById('signup_step2').style.display = 'block'; }
+    }
+
+    async function completeSignUp() {
+        const password = document.getElementById('signup_password').value;
+        const { error } = await client.auth.updateUser({ password });
+        if(error) alert("오류: " + error.message);
+        else { alert("가입 완료! 로그인해주세요."); showSection('login'); }
+    }
+
+    async function handleLogin() {
+        const email = document.getElementById('login_email').value;
+        const password = document.getElementById('login_password').value;
+        const { error } = await client.auth.signInWithPassword({ email, password });
+        if(error) alert("실패: " + error.message);
+        else { checkUser(); showSection('home', document.querySelector('.nav-btn')); }
+    }
+
+    async function handleLogout() {
+        await client.auth.signOut();
+        checkUser();
+        showSection('home', document.querySelector('.nav-btn'));
+    }
+
+    // --- 데이터 로딩 및 공고 등록 (오류 해결) ---
+    async function loadJobs() {
+        const jobList = document.getElementById('jobList');
+        try {
+            const { data, error } = await client.from('jobs').select('*').order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            
+            if (!data || data.length === 0) {
+                jobList.innerHTML = "등록된 공고가 없습니다. 첫 공고를 올려보세요!";
+                return;
+            }
+
+            jobList.innerHTML = "";
+            data.forEach(job => {
+                const div = document.createElement('div');
+                div.className = 'card';
+                div.innerHTML = `
+                    <span style="color:#e67e22; font-weight:bold; float:right;">${Number(job.pay).toLocaleString()}원</span>
+                    <div style="font-weight:bold; font-size:18px;">${job.title}</div>
+                    <div style="color:#666; font-size:14px; margin: 5px 0;">${job.company} | ${job.location}</div>
+                    <div>${job.is_safe ? '<span style="font-size:11px; padding:4px 8px; border-radius:5px; background:#e8f8f5; color:#166534;">✅ 안심서약</span>' : ''}</div>
+                `;
+                jobList.appendChild(div);
+            });
+        } catch (err) {
+            jobList.innerHTML = `<div style="color:red; font-size:14px;">데이터 로딩 오류: ${err.message}<br>가이드: Supabase RLS 정책을 확인하세요.</div>`;
+        }
+    }
+
+    async function saveJob() {
+        if(!isUserLoggedIn) return alert("로그인 후 이용 가능합니다.");
+        
+        const title = document.getElementById('p_title').value;
+        const company = document.getElementById('p_company').value;
+        const pay = document.getElementById('p_pay').value;
+        const location = document.getElementById('p_location').value;
+        const is_safe = document.getElementById('p_safe').checked;
+
+        if(!title || !company || !pay) return alert("내용을 모두 입력해주세요!");
+
+        const { error } = await client.from('jobs').insert([{ title, company, pay, location, is_safe }]);
+        
+        if (error) alert("등록 실패: " + error.message);
+        else {
+            alert("공고가 등록되었습니다!");
+            // 폼 초기화
+            document.getElementById('p_title').value = "";
+            document.getElementById('p_company').value = "";
+            document.getElementById('p_pay').value = "";
+            document.getElementById('p_location').value = "";
+            showSection('home', document.querySelector('.nav-btn'));
+        }
+    }
+
+    async function checkUser() {
+        const { data: { user } } = await client.auth.getUser();
+        const status = document.getElementById('authStatus');
+        const loginTab = document.getElementById('loginTab');
+        if (user) {
+            isUserLoggedIn = true;
+            status.innerText = user.email + "님";
+            loginTab.innerText = "내정보";
+            document.getElementById('mypage_email').innerText = user.email;
+        } else {
+            isUserLoggedIn = false;
+            status.innerText = "로그인이 필요합니다.";
+            loginTab.innerText = "로그인";
+        }
+    }
+
+    checkUser();
+    loadJobs();
+</script>
+</body>
+</html>
